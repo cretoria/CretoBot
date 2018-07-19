@@ -5,18 +5,10 @@ import json
 import aiohttp
 import time
 
-
+with open('config.json', 'r') as f:
+    config = json.load(f)
 
 from discord.ext import commands
-
-def load_credentials():
-    """
-    Retrieves token
-    """
-    with open('config.json') as f:
-        return json.load(f)
-    
-credentials = load_credentials()
 
 client = discord.Client()
 
@@ -27,4 +19,4 @@ async def on_ready():
     print (client.user.id)
     print ('------')
 
-client.run(credentials)
+client.run(config.token)
