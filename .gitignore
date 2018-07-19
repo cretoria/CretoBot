@@ -1,3 +1,7 @@
+# My additional adds to go with all the default ones Github graciously offered below
+*~
+config.json
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
