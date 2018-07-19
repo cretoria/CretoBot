@@ -4,9 +4,9 @@ import sys
 import json
 import aiohttp
 import time
+import config
 
-with open('config.json', 'r') as f:
-    config = json.load(f)
+
 
 from discord.ext import commands
 
