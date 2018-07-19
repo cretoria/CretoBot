@@ -23,4 +23,4 @@ async def hello(ctx):
     
 
 
-client.run(config.token)
+bot.run(config.token)
