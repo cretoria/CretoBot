@@ -4,7 +4,7 @@ import sys
 import json
 import aiohttp
 import time
-import giphy_client
+
 
 
 from discord.ext import commands
