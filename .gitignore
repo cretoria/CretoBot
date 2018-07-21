@@ -1,6 +1,6 @@
 # My additional adds to go with all the default ones Github graciously offered below
 *~
-config.json
+config.py
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

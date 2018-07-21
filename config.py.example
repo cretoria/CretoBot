@@ -1,0 +1,2 @@
+# to use this example file, just replace your toekn in the space indicated and save as config.py
+token = '[your bot token]'

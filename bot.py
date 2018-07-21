@@ -1,26 +1,25 @@
 import discord
-import asyncio
-import sys
-import json
-import aiohttp
-import time
 import config
-from discord.ext import commands
 
 bot = discord.Client()
-bot = commands.Bot(command_prefix='+', description='A bot that greets the user back.')
+
+@bot.event
+async def on_message(message):
+    # we do not want the bot to reply to itself
+    if message.author == bot.user:
+        return
+    
+    print(message.author, message.content)
+
+    if message.content.startswith('!hello'):
+        msg = 'Hello {0.author.nick}'.format(message)
+        await bot.send_message(message.channel, msg)
 
 @bot.event
 async def on_ready():
-    print ('Logged in as')
-    print (bot.user.name)
-    print (bot.user.id)
-    print ('------')
-
-@bot.command()
-async def hello(ctx):
-    await ctx.send("Hello there! :wave:")
-    
-
+    print('Logged in as')
+    print(bot.user.name)
+    print(bot.user.id)
+    print('------')
 
 bot.run(config.token)
