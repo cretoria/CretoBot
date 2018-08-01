@@ -80,7 +80,9 @@ class CretoriaBot(commands.Bot):
         # The json file has timestamps at the first and last index, we don't care about these
         for d in fresh_data[1:-1]:
             if d.get("loc") == our_kd:
-                return await ctx.send('\n'.join(x["name"] for x in d.get("provinces")))
+                output = []
+                output.append((x["name"], y["nw"]) for x in d.get("provinces") for y in d.get("provinces"))
+                return await ctx.send(x for x in output)
 
     async def on_ready(self):
         print('Logged in as')
