@@ -23,6 +23,7 @@ class CretoriaBot(commands.Bot):
         self.add_command(self.setkd)
         self.add_command(self.kd)
         self.add_command(self.list_provs)
+        self.add_command(self.dragoncost)
         self.saved_data = None
         self.session = aiohttp.ClientSession(loop=self.loop)
 
@@ -66,9 +67,40 @@ class CretoriaBot(commands.Bot):
             our_kd = data["our_KD"]
         await ctx.send('Our KD is ({}).'.format(our_kd))
     
+    # let's kick off this dragon calc
+    @commands.command()
+    async def dragoncost(self, ctx, target_kd, color):
+        with open ("dragonScript.json", "r") as f:
+            d = json.load(f)
+            our_kd = d["our_KD"]
+            em = d["emerald"]
+            ruby = d["ruby"]
+            gold = d["gold"]
+            saph = d["sapphire"]
+ 
+        fresh_data = await self.get_data()
+        # The json file has timestamps at the first and last index, we don't care about these
+        for e in fresh_data[1:-1]:
+            if e.get("loc") == our_kd:
+                our_nw = e.get("nw")
+            if e.get("loc") == target_kd:
+                target_nw = e.get("nw")
+        
+        if color == "emerald" or "em" or "green":
+            cost_metric = em
+        elif color == "ruby" or "red":
+            cost_metric = ruby
+        elif color == "gold":
+            cost_metric = gold
+        elif color == "sapphire" or "saph" or "blue":
+            cost_metric = saph
+        else:
+            await ctx.send("Invalid color option, please use: emerald, ruby, gold, or sapphire.")
+            
+        cost = int(target_nw * 0.656 * cost_metric)
+        return await ctx.send("Total cost for a {} dragon will be {:,}gc.".format(color, cost))
+    
     # List current KD provinces
-    
-    
     @commands.command()
     async def list_provs(self, ctx):
         with open ("dragonScript.json", "r") as f:
@@ -80,7 +112,8 @@ class CretoriaBot(commands.Bot):
         # The json file has timestamps at the first and last index, we don't care about these
         for d in fresh_data[1:-1]:
             if d.get("loc") == our_kd:
-                return await ctx.send('\n'.join(x["name"] for x in d.get("provinces")))
+                return await ctx.send("Our KD NW: {}".format(d.get("nw"))),
+                await ctx.send('\n'.join((x["name"], str(y["nw"])) for x, y in d.get("provinces")))
 
     async def on_ready(self):
         print('Logged in as')
