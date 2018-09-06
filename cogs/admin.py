@@ -1,5 +1,13 @@
+import discord
+import logging
+
 from discord.ext import commands
 
+logger = logging.getLogger('discord')
+logger.setLevel(logging.ERROR)
+handler = logging.FileHandler(filename='/home/pi/cretobot/discord.log', encoding='utf-8', mode='w')
+handler.setFormatter(logging.Formatter('%(asctime)s:%(levelname)s:%(name)s: %(message)s'))
+logger.addHandler(handler)
 
 class Admin:
 
@@ -35,7 +43,7 @@ class Admin:
         else:
             await ctx.send('**`SUCCESS`**')
 
-    @commands.command(name='reload', hidden=True)
+    @commands.command(name='reload', aliases=["rl"], hidden=True)
     @commands.is_owner()
     async def cog_reload(self, ctx, *, cog: str):
         """Command which Reloads a Module.
