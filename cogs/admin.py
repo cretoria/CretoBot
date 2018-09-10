@@ -14,12 +14,18 @@ class Admin:
     def __init__(self, bot):
         self.bot = bot
     
+    # So I can easily get discord IDs on mobile
+    @commands.command(hidden=True)
+    @commands.is_owner()
+    async def i(self, ctx):
+        await ctx.send(ctx.channel.id)
+        
+    
     # Hidden means it won't show up on the default help.
     @commands.command(name='load', hidden=True)
     @commands.is_owner()
     async def cog_load(self, ctx, *, cog: str):
-        """Command which Loads a Module.
-        Remember to use dot path. e.g: cogs.owner"""
+        """Command which Loads a Module."""
 
         try:
             self.bot.load_extension(cog)
@@ -32,8 +38,7 @@ class Admin:
     @commands.command(name='unload', hidden=True)
     @commands.is_owner()
     async def cog_unload(self, ctx, *, cog: str):
-        """Command which Unloads a Module.
-        Remember to use dot path. e.g: cogs.owner"""
+        """Command which Unloads a Module."""
 
         try:
             self.bot.unload_extension(cog)
@@ -46,8 +51,7 @@ class Admin:
     @commands.command(name='reload', aliases=["rl"], hidden=True)
     @commands.is_owner()
     async def cog_reload(self, ctx, *, cog: str):
-        """Command which Reloads a Module.
-        Remember to use dot path. e.g: cogs.owner"""
+        """Command which Reloads a Module."""
 
         try:
             self.bot.unload_extension(cog)

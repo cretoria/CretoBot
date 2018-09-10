@@ -19,6 +19,7 @@ class RockBot(commands.Bot):
         super().__init__(command_prefix="!", description=description, case_insensitive=True)
         self.client_id = 460400451645472782
         self.owner_id = 404071518159634452
+        self.remove_command('help')
                                 
         for extension in INITIAL_EXTENSIONS:
             try:
