@@ -20,6 +20,10 @@ class Admin:
     async def i(self, ctx):
         await ctx.send(ctx.channel.id)
         
+    @commands.command(hidden=True)
+    async def github(self, ctx):
+        await ctx.send('https://github.com/cretoria/Rockbot')
+        
     
     # Hidden means it won't show up on the default help.
     @commands.command(name='load', hidden=True)
