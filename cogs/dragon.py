@@ -16,10 +16,14 @@ class Dragon:
         self.saved_data = None
         self.bot.session = aiohttp.ClientSession(loop=self.bot.loop)
         
+        
     async def get_data(self):
-        # If saved data is None we haven't fetched anything, thanks to short-circuiting we can check the index in the or clause safely
-        # If 15 minutes has passed since the last data fetched, we need to update to make sure it's fresh
-        if self.saved_data is None or (dt.utcnow() - dt.strptime(self.saved_data[0], DATETIME_FORMAT)).total_seconds() // 60 > 15:
+        # If saved data is None we haven't fetched anything, thanks to short-
+        # circuiting we can check the index in the or clause safely
+        # If 15 minutes has passed since the last data fetched, we need to update 
+        # to make sure it's fresh
+        if self.saved_data is None or (dt.utcnow() - dt.strptime(self.saved_data[0], 
+                                       DATETIME_FORMAT)).total_seconds() // 60 > 15:
             await self.download_data()
         return self.saved_data
 
@@ -27,6 +31,7 @@ class Dragon:
         async with self.bot.session.get(UTOPIA_URL) as r:
             data = await r.json()
         self.saved_data = data
+        
     
     ### Listen in #dragon channel for funding posts, and log in tracking json
     async def on_message(self, message):
@@ -42,20 +47,22 @@ class Dragon:
                 
                     
     # Group of commands to assist with dragon cost, funding, and slaying
-    @commands.group(invoke_without_command=False, aliases=["dragoncost"], case_insensitive=True, no_pm=True)
+    @commands.group(invoke_without_command=False, aliases=["dragoncost"], 
+                    case_insensitive=True, no_pm=True)
     async def fluffy(self, ctx):
         pass
     
     @fluffy.command(name="cost", no_pm=True)
     async def fluffy_cost(self, ctx, target_kd, color):
         # start with populating the cost multiplier for the dragon types
-        with open ("/home/pi/cretobot/dragonScript.json", "r") as f:
-            d = json.load(f)
-            our_kd = d["our_KD"]
+        with open ("/home/pi/cretobot/shameless77.json", "r") as f:
+            data = json.load(f)
+            our_kd = data["misc"]["our_KD"]
            
         fresh_data = await self.get_data()
 
-        # The json file has timestamps at the first and last index, we don't care about these
+        # The json file has timestamps at the first and last index, 
+        # we don't care about these
         for e in fresh_data[1:-1]:
             if e.get("loc") == our_kd:
                 our_nw = e.get("nw")
@@ -71,55 +78,75 @@ class Dragon:
         elif color.lower() == "sapphire":
             cost_metric = 1
         else:
-            await ctx.send("Invalid color option, please use: emerald, ruby, gold, or sapphire.")
+            await ctx.send("Invalid color option, please use: emerald, ruby, "
+                           "gold, or sapphire.")
         
         # apply the formula from the utopia wiki    
         dragon_cost = int(target_nw * 0.656 * cost_metric)
-        await ctx.send("Total cost for a {} dragon will be {:,}gc.".format(color, dragon_cost))
+        await ctx.send("Total cost for a {} dragon will be {:,}gc.".format(color,
+                       dragon_cost))
         
-        # if person calling command is a KD leader, give option to set the target KD, dragon cost,
-        # and per province dragonshare and store in the json file
+        # if person calling command is a KD leader, give option to set the target 
+        # KD, dragon cost, and per province dragonshare and store in the json file
         ok_roles = ['leaders', 'admin']
         roles = {x for x in ctx.guild.roles if x.name in ok_roles}
         if roles & set(ctx.author.roles):
-            await ctx.send("Would you like to set this cost for dragonshare purposes? (respond with 'yes' if so)")
+            await ctx.send("Would you like to set this cost for dragonshare "
+                           "purposes? (respond with 'yes' if so)")
             def check(m):
                 return m.content.lower()=='yes'
             await self.bot.wait_for('message', timeout=20.0, check=check)
 
-            # pull any existing data from json
-            with open ("/home/pi/cretobot/dragonScript.json", "r+") as f:
-                data = json.load(f)
-                our_kd = data["our_KD"]
-
-            # set cost and target info in prep for writing to json    
-            data["dragon_cost"] = dragon_cost
-            data["target_KD"] = target_kd
-
             # populate province list with province name and respective dragonshare
-            province_share = {}
             fresh_data = await self.get_data()
-                # The json file has timestamps at the first and last index, we don't care about these
             for d in fresh_data[1:-1]:
-                if d.get("loc") == our_kd:                  
-                    province_share = [{"name": x["name"], "nw": x["nw"], "share": x["nw"]/d["nw"]*dragon_cost*1.1} for x in d.get("provinces")]
+                if d.get("loc") == our_kd: 
+                    for x in d.get("provinces"):
+                        for p_name, p_info in data.items():
+                            if x["name"] == p_name:
+                                p_info["share"] = int(x["nw"]/d["nw"]*dragon_cost*1.1)
+                        
+#                     data = dict([x["name"], {"name": x["name"], "nw": x["nw"], "share": 
+#                                  x["nw"]/d["nw"]*dragon_cost*1.1}] for x in d.get("provinces"))
+            data["misc"]["dragon_cost"] = dragon_cost
+            data["misc"]["target_KD"] = target_kd
 
-            data["provinces"] = sorted(province_share, key=lambda k:k["name"])
             # update dragonScript json with target kd and province share info
-            with open ("/home/pi/cretobot/dragonScript.json", "w+") as f:
-                json.dump(data, f, indent = 4)
+            with open("/home/pi/cretobot/shameless77.json", "w+") as f:
+            #with open ("/home/pi/cretobot/dragonScript.json", "w+") as f:
+                json.dump(data, f, indent = 4, sort_keys=True)
                 
-            return await ctx.send('Dragon target successfully set to ({}) for a {} dragon with total cost of {:,}gc.\n'
-                                  'To see the list of dragonshares by province, use `!fluffy list`.'.format(
-                                  target_kd, color, dragon_cost))
+            return await ctx.send('Dragon target successfully set to ({}) for a {} '
+                                  'dragon with total cost of {:,}gc.\n To see the list '
+                                  'of dragonshares by province, use `!fluffy fund`.'
+                                  .format(target_kd, color, dragon_cost))
         
     @fluffy.command(name="fund", pass_context=True)
     async def fluffy_fund(self, ctx):
-        with open ("/home/pi/cretobot/dragonScript.json", "r") as f:
+        with open ("/home/pi/cretobot/shameless77.json", "r") as f:
             data = json.load(f)
-            
-        await ctx.send('\n'.join(("{} | {:,.0f}gc".format(x["name"], x["share"])) for x in data["provinces"]))
+        
+        await ctx.send('\n'.join(('{} | {:,}gc'.format(p_name, p_info["share"])
+                                     for p_name, p_info in data.items() if
+                                     p_name != 'misc')))
 
+    
+    @commands.command(name="myfund", pass_context=True)
+    async def _myfund(self, ctx):
+        with open("/home/pi/cretobot/shameless77.json", "r") as f:
+            data = json.load(f)
+        not_here = 1     
+        for p_name, p_info in data.items():
+            if p_name != "misc" and p_info["discord.id"] == ctx.author.id:
+                not_here = 0
+                return await ctx.send('Your total fund amount is {:,}gc.'
+                               .format(p_info["share"]))
+            
+        if not_here == 1:
+            await ctx.send('Your Discord user is not currently linked to any '
+                           'province for Rockbot commands. Please do `!provset '
+                           '[Province Name]` to link, then try this command again.')
+                
     ### Listen in #internal channel for dragon-arrived post, then calc HP and prov shares
     async def on_message(self, message):
         dragon_here = 'has begun ravaging our lands'
@@ -128,9 +155,9 @@ class Dragon:
             words = message.content.split()
             dragon_color = words[words.index('Dragon,')-1].lower()
             
-            with open("/home/pi/cretobot/dragonScript.json", "r") as f:
+            with open("/home/pi/cretobot/shameless77.json", "r") as f:
                 data = json.load(f)
-                our_kd = data["our_KD"]
+                our_kd = data["misc"]["our_KD"]
                 
             fresh_data = await self.get_data()
             
@@ -150,37 +177,55 @@ class Dragon:
                 return
             
             dragon_hp = int(hp_mod * our_nw / 132)
-            province_slay = {}
            
+             # populate province list with province name and respective slay cost
             for d in fresh_data[1:-1]:
-                if d.get("loc") == our_kd:                  
-                    province_slay = [{"name": x["name"], "nw": x["nw"], "slay": x["nw"]/d["nw"]*dragon_hp*1.1} for x in d.get("provinces")]
+                if d.get("loc") == our_kd: 
+                    for x in d.get("provinces"):
+                        for p_name, p_info in data.items():
+                            if x["name"] == p_name:
+                                p_info["slay"] = int(x["nw"]/d["nw"]*dragon_hp*1.1)
             
-            data["slay_list"] = sorted(province_slay, key=lambda k:k["name"])
-            # update dragonScript json with target kd and province slay info
-            with open ("/home/pi/cretobot/dragonScript.json", "w+") as f:
-                json.dump(data, f, indent = 4)
+            # update dragonScript json with province slay info
+            with open ("/home/pi/cretobot/shameless77.json", "w+") as f:
+                json.dump(data, f, indent = 4, sort_keys=True)
             
             chan = self.bot.get_channel(445407642349993987)
             await chan.send('{} Dragon currently ravaging our lands has {:,}hp\n'.format(
                                     dragon_color.capitalize(), dragon_hp))
-            await chan.send('\n'.join(("{} | {:,.0f}hp".format(x["name"], x["slay"])) 
-                                       for x in data["slay_list"]))
+            await chan.send('\n'.join(("{} | {:,}hp".format(p_name, p_info["slay"])) 
+                                       for p_name, p_info in data.items() if p_name
+                                       != "misc"))
             return await chan.send('Leaders have been pinged that a dragon is here. We will'
                             ' typically slay our dragons ASAP according to this NW-'
                             'based allocation, but sending troops prior to an order'
                             ' from Leaders is at your own risk.')
-            #return await message.channel.send('{} Dragon currently ravaging our lands has {:,}hp\n'
-            #                      'To see the list of dragonslay hp by province, use'
-            #                      '`!fluffy slay`.'.format(dragon_color.capitalize(),
-            #                      dragon_hp))
         
     @fluffy.command(name="slay", pass_context=True)
     async def fluffy_slay(self, ctx):
-        with open ("/home/pi/cretobot/dragonScript.json", "r") as f:
+        with open ("/home/pi/cretobot/shameless77.json", "r") as f:
             data = json.load(f)
             
-        await ctx.send('\n'.join(("{} | {:,.0f}hp".format(x["name"], x["slay"])) for x in data["slay_list"]))
+        await ctx.send('\n'.join(("{} | {:,}hp".format(p_name, p_info["slay"])) 
+                                  for p_name, p_info in data.items() if p_name
+                                  != "misc"))
+        
+    @commands.command(name="myslay", pass_context=True)
+    async def _myslay(self, ctx):
+        with open("/home/pi/cretobot/shameless77.json", "r") as f:
+            data = json.load(f)
+        
+        not_here = 1
+        for p_name, p_info in data.items():
+            if p_name != "misc" and p_info["discord.id"] == ctx.author.id:
+                not_here = 0
+                return await ctx.send('Your total slay amount is {:,}hp.'
+                               .format(p_info["slay"]))
+            
+        if not_here == 1:
+            await ctx.send('Your Discord user is not currently linked to any '
+                           'province for Rockbot commands. Please do `!provset '
+                           '[Province Name]` to link, then try this command again.')
 
 def setup(bot):
     bot.add_cog(Dragon(bot))

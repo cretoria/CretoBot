@@ -1,65 +1,109 @@
-import random
-import json
 import discord
+import asyncio
+import json
+import aiohttp
 
+from datetime import datetime as dt
+from itertools import islice
 from discord.ext import commands
+
+UTOPIA_URL = "http://utopia-game.com/wol/game/kingdoms_dump/?key=l1FdkNfdklAs"
+DATETIME_FORMAT = "%Y-%m-%d %H:%M:%S.%f"
 
 class Meta:
     def __init__(self,bot):
         self.bot = bot
+        self.saved_data = None
+#         self.bot.session = aiohttp.ClientSession(loop=self.bot.loop)
+        
+    async def get_data(self):
+        # If saved data is None we haven't fetched anything, thanks to short-
+        # circuiting we can check the index in the or clause safely
+        # If 15 minutes has passed since the last data fetched, we need to update 
+        # to make sure it's fresh
+        if self.saved_data is None or (dt.utcnow() - dt.strptime(self.saved_data[0], 
+                                       DATETIME_FORMAT)).total_seconds() // 60 > 15:
+            await self.download_data()
+        return self.saved_data
+
+    async def download_data(self):
+        async with self.bot.session.get(UTOPIA_URL) as r:
+            data = await r.json()
+        self.saved_data = data
+        
         
     @commands.command()
     async def roster(self, ctx):
         e = discord.Embed(title='Shameless Kingdom Roster', color=0x000000)
         e.set_image(url='https://i.imgur.com/grEYenc.png')
         await ctx.send(content='Here you go you candy-ass jabroni...', embed=e)
-        
+    
+     # Command to set our current KD
+    @commands.command()
+    @commands.has_any_role('leaders', 'admin')
+    async def setkd(self, ctx, our_kd):
+        print('ok')
+        fresh_data = await self.get_data()
+        print('ok.1')
+        for d in fresh_data[1:-1]:
+            if d.get("loc") == our_kd:  
+                print('ok2')
+                data = dict([x["name"], {"nw": x["nw"], "acres": x["land"],
+                                "race": x["race"], "honor": x["honor"], "discord.id":
+                                0, "discord.name": ""}] for x in d.get("provinces"))
+                data["misc"] = {}
+                data["misc"]["our_KD"] = our_kd
+    
+        with open ("/home/pi/cretobot/shameless77.json", "w+") as f:
+            json.dump(data, f, indent=4, sort_keys=True)
+    
+        await ctx.send('Our KD set to ({}) and all province info populated.'
+                       .format(our_kd))
+    
+    # Notify if person doens't have necessary role
+    @setkd.error
+    async def setkd_error(self, ctx, error):
+        if isinstance(error, commands.CheckFailure):
+            await ctx.send('You do not have the necessary permissions for this command.')
+            
     '''
     Piggyback on munkbot's !setprov to store discord ID in dragonScript.json
     along with the respective province name
     '''
-    @commands.command()
+    @commands.command(aliases=['provset'])
     async def setprov(self, ctx, *, prov_name):
-        with open('dragonScript.json', 'r') as f:
+        with open('/home/pi/cretobot/shameless77.json', 'r') as f:
             data = json.load(f)
         
-        provinces = data['provinces']
-        blah = next((x for x in provinces if x['name'] == prov_name), None)
-        print(blah)
-        if blah != None:
-            blah.update({'discord.id' : ctx.author.id,
-                         'discord.name' : ctx.author.name})
-            await ctx.send('Info updated to link your Discord user info with'
-                           ' Rockbot\'s KD info')
-            
-            # update KD json with data
-            with open('dragonScript.json', 'w') as f:
-                json.dump(data, f, indent=4)
-        else:
-            return await ctx.send('Check if {} is new province or spelled '
-                                  'incorrectly.'.format(prov_name))
-    
+        for p_name, p_info in data.items():
+            if p_name == prov_name:
+                p_info["discord.id"] = ctx.author.id
+                p_info["discord.name"] = ctx.author.name
+                # update KD json with data
+                with open('/home/pi/cretobot/shameless77.json', 'w') as f:
+                    json.dump(data, f, indent=4, sort_keys=True)
+                return await ctx.send('Info updated to link your Discord user '
+                                      'info with Rockbot\'s KD info')
+            elif prov_name not in data.keys():
+                return await ctx.send('Invalid province name, jabroni.')
+        
     @commands.command()
     async def me(self, ctx):
-        with open('dragonScript.json', 'r') as f:
+        with open('/home/pi/cretobot/shameless77.json', 'r') as f:
             data = json.load(f)
-        await ctx.send(ctx.author.id)
         
-        info = data['provinces']
-        blah = next((x for x in info if x['discord.id'] == 
-                    ctx.author.id), None)
-        if blah == None:
-            await ctx.send('none')
-        name = blah['name']
-        discord_id = blah['discord.id']
-        
-        await ctx.send('{}|{}'.format(name, discord_id))
-        embed = discord.Embed(title='Your KD Info:', color=0x4169e1)
-        embed.set_thumbnail(ctx.author.avatar_url)
-        embed.add_field(name= "Province Name:", value = ['name'])
-        embed.add_field(name='Ruler:', value=ctx.author.name)
-        
-        #await ctx.send(embed=embed)
+        for p_name, p_info in data.items():
+            if p_info["discord.id"] == ctx.author.id:
+                print('id matched')
+                embed = discord.Embed(color=0x4169e1)
+                embed.set_author(name='Your Shameless User Info:')
+                embed.set_thumbnail(url=
+                                    "https://cdn.discordapp.com/avatars/{0.id}/{0.avatar}.png?size=1024"
+                                    .format(ctx.author))
+                embed.add_field(name= "Province Name: ", value = p_name, inline=True)
+                embed.add_field(name='Ruler: ', value=ctx.author.name, inline=True)
+                embed.add_field(name='Nobility: ', value=p_info["honor"], inline=True)
+                return await ctx.send(embed=embed)
     
     ### Custom help command
     @commands.command()
@@ -89,33 +133,13 @@ class Meta:
                             ' after !help, i.e. `!help [command]`')
         
         await ctx.send(embed=embed)
-            
-    # Command to set our current KD
-    @commands.command()
-    @commands.has_any_role('leaders', 'admin')
-    async def setkd(self, ctx, our_kd):
-        with open ("/home/pi/cretobot/dragonScript.json", "r+") as f:
-            data = json.load(f)
-        
-        data["our_KD"] = our_kd
-    
-        with open ("/home/pi/cretobot/dragonScript.json", "w+") as f:
-            json.dump(data, f, indent=4)
-    
-        await ctx.send('Our KD set to ({}).'.format(our_kd))
-    
-    # Notify if person doens't have necessary role
-    @setkd.error
-    async def setkd_error(self, ctx, error):
-        if isinstance(error, commands.CheckFailure):
-            await ctx.send('You do not have the necessary permissions for this command.')
     
     # Retrieves our KD location from json
     @commands.command()
     async def kd(self, ctx):
-        with open ("/home/pi/cretobot/dragonScript.json", "r+") as jsonFile:
-            data = json.load(jsonFile)
-            our_kd = data["our_KD"]
+        with open ("/home/pi/cretobot/shameless77.json", "r+") as f:
+            data = json.load(f)
+            our_kd = data["misc"]["our_KD"]
         await ctx.send('Our KD is ({}).'.format(our_kd))
         
     @commands.command()
