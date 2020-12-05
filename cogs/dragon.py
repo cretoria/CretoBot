@@ -7,15 +7,14 @@ from datetime import datetime as dt
 from itertools import islice
 from discord.ext import commands
 
-UTOPIA_URL = "http://utopia-game.com/wol/game/kingdoms_dump/?key=l1FdkNfdklAs"
+UTOPIA_URL = "https://utopia-game.com/wol/game/kingdoms_dump/"
 DATETIME_FORMAT = "%Y-%m-%d %H:%M:%S.%f"
 
-class Dragon:
-    def __init__(self, bot):
+class Dragon(commands.Cog):
+    def __init__(self,bot):
         self.bot = bot
         self.saved_data = None
         self.bot.session = aiohttp.ClientSession(loop=self.bot.loop)
-        
         
     async def get_data(self):
         # If saved data is None we haven't fetched anything, thanks to short-
@@ -31,20 +30,6 @@ class Dragon:
         async with self.bot.session.get(UTOPIA_URL) as r:
             data = await r.json()
         self.saved_data = data
-        
-    
-    ### Listen in #dragon channel for funding posts, and log in tracking json
-    async def on_message(self, message):
-        if message.channel.name == 'dragon' and message.author.name == 'munkbot':
-            with open('/home/pi/cretobot/dragonFund.json', 'r') as f:
-                fund = json.load(f)
-            fundpost = message.content
-            fund_amt = int(''.join(filter(str.isdigit, fundpost)))
-            entry = {'Province': fundpost[25:fundpost.find(' [')], 'Amount': fund_amt}
-            fund.append(entry)
-            with open('/home/pi/cretobot/dragonFund.json','w') as f:
-                json.dump(fund, f, indent = 2)
-                
                     
     # Group of commands to assist with dragon cost, funding, and slaying
     @commands.group(invoke_without_command=False, aliases=["dragoncost"], 
@@ -68,18 +53,20 @@ class Dragon:
                 our_nw = e.get("nw")
             if e.get("loc") == target_kd:
                 target_nw = e.get("nw")
-        
+       
         if color.lower() == "emerald":
             cost_metric = 3
         elif color.lower() == "ruby":
             cost_metric = 2.4
-        elif color.lower() == "gold":
+        elif color.lower() == "topaz":
             cost_metric = 2
         elif color.lower() == "sapphire":
-            cost_metric = 1
+            cost_metric = 2
+        elif color.lower() == "amethyst":
+            cost_metric = 2.4
         else:
             await ctx.send("Invalid color option, please use: emerald, ruby, "
-                           "gold, or sapphire.")
+                           "topaz, amethyst, or sapphire.")
         
         # apply the formula from the utopia wiki    
         dragon_cost = int(target_nw * 0.656 * cost_metric)
@@ -120,6 +107,30 @@ class Dragon:
                                   'dragon with total cost of {:,}gc.\n To see the list '
                                   'of dragonshares by province, use `!fluffy fund`.'
                                   .format(target_kd, color, dragon_cost))
+    
+    @fluffy.command(name="price", no_pm=True)
+    async def fluffy_price(self, ctx, target_nw: int, color):
+            
+        if color.lower() == "emerald":
+            cost_metric = 3
+        elif color.lower() == "ruby":
+            cost_metric = 2.4
+        elif color.lower() == "topaz":
+            cost_metric = 2
+        elif color.lower() == "sapphire":
+            cost_metric = 2
+        elif color.lower() == "amethyst":
+            cost_metric = 2.4
+        else:
+            await ctx.send("Invalid color option, please use: emerald, ruby, "
+                           "topaz, amethyst, or sapphire.")
+        
+        # apply the formula from the utopia wiki    
+        dragon_cost = int(target_nw * 0.656 * cost_metric)
+        await ctx.send("Total cost for a {} dragon will be {:,}gc.".format(color,
+                       dragon_cost))
+        
+       
         
     @fluffy.command(name="fund", pass_context=True)
     async def fluffy_fund(self, ctx):
@@ -131,7 +142,7 @@ class Dragon:
                                      p_name != 'misc')))
 
     
-    @commands.command(name="myfund", pass_context=True)
+    @commands.command(name="myfund", aliases=["myshare"], pass_context=True)
     async def _myfund(self, ctx):
         with open("/home/pi/cretobot/shameless77.json", "r") as f:
             data = json.load(f)
@@ -148,12 +159,29 @@ class Dragon:
                            '[Province Name]` to link, then try this command again.')
                 
     ### Listen in #internal channel for dragon-arrived post, then calc HP and prov shares
+    @commands.Cog.listener()
     async def on_message(self, message):
-        dragon_here = 'has begun ravaging our lands'
-        if message.channel.id == 404868940683149332 and dragon_here in message.content:
+        dragon_here = 'has begun ravaging'
+        ### This is the funding tracker, need to refine still
+#         if message.channel.id == 443472774179061790 and message.author.id == 401475129550438400:
+#             with open('/home/pi/cretobot/dragonFund.json', 'r') as f:
+#                 fund = json.load(f)
+#             fundpost = message.content
+#             fund_amt = int(''.join(filter(str.isdigit, fundpost)))
+#             entry = {'Province': fundpost[25:fundpost.find(' [')], 'Amount': fund_amt}
+#             fund.append(entry)
+#             with open('/home/pi/cretobot/dragonFund.json','w') as f:
+#                 json.dump(fund, f, indent = 2)
+        ### End funding tracker
+                
+        if dragon_here in message.content:
             ### Get the dragon color
             words = message.content.split()
-            dragon_color = words[words.index('Dragon,')-1].lower()
+            if 'Dragon,' in message.content:
+                dragon_color = words[words.index('Dragon,')-1].lower()
+                print(dragon_color)
+            else:
+                dragon_color = words[words.index('Dragon')-1].lower()
             
             with open("/home/pi/cretobot/shameless77.json", "r") as f:
                 data = json.load(f)
@@ -166,13 +194,15 @@ class Dragon:
                     our_nw = e.get("nw")
                     
             if dragon_color == 'sapphire':
-                hp_mod = 1
-            elif dragon_color == 'gold':
-                hp_mod = 2.625
+                hp_mod = 6.375
+            elif dragon_color == 'topaz':
+                hp_mod = 6.375
             elif dragon_color == 'ruby':
-                hp_mod = 4.5
+                hp_mod = 7.65
             elif dragon_color == 'emerald':
-                hp_mod = 5.25
+                hp_mod = 9.5625
+            elif dragon_color == 'amethyst':
+                hp_mod = 7.65
             else:
                 return
             
@@ -189,7 +219,10 @@ class Dragon:
             # update dragonScript json with province slay info
             with open ("/home/pi/cretobot/shameless77.json", "w+") as f:
                 json.dump(data, f, indent = 4, sort_keys=True)
-            
+            leader_chan = self.bot.get_channel(435901894133547018)
+#             await leader_chan.send('<@&{}> We have a dragon. Slay values '
+#                            'have been posted in #announcements - let folks know '
+#                            'what the slay orders are!'.format(435856600998215690))
             chan = self.bot.get_channel(445407642349993987)
             await chan.send('{} Dragon currently ravaging our lands has {:,}hp\n'.format(
                                     dragon_color.capitalize(), dragon_hp))
@@ -226,6 +259,36 @@ class Dragon:
             await ctx.send('Your Discord user is not currently linked to any '
                            'province for Rockbot commands. Please do `!provset '
                            '[Province Name]` to link, then try this command again.')
+            
+    @fluffy.command(name='help', pass_context=True)
+    async def fluffy_help(self, ctx):
+        
+        embed = discord.Embed(color=0xffff00)
+        embed.set_author(name='Dragon commands help for your candy-ass')
+        embed.add_field(name='`!fluffy cost [x:y] [color]`', value='Takes given target '
+                        'KD and dragon type to calculate dragon cost. To use this '
+                        'command you must include a KD location, i.e. 4:13, and '
+                        'dragon color (sapphire, gold, ruby, emerald). With '
+                        'proper parameters used the dragon cost is shown, and '
+                        'if you are in @leaders you are given the option to set '
+                        'the dragon, which will populate the fund cost for each '
+                        'province.')
+        embed.add_field(name='`!fluffy fund`', value='Lists the per-province'
+                        ' funding amounts.', inline=False)
+        embed.add_field(name='`!fluffy slay`', value='Lists the per-province'
+                        ' slay points.', inline=False)
+        embed.add_field(name='`!myfund`', value='Gives the user\'s individual '
+                        'dragon funding responsibility. If you have not previously '
+                        'linked your Discord user and province via `!setprov '
+                        '[Province Name]`, you will receive an error advising you '
+                        'to do so.')
+        embed.add_field(name='`!myslay`', value='Gives the user\'s individual '
+                        'dragon slay responsibility. If you have not previously '
+                        'linked your Discord user and province via `!setprov '
+                        '[Province Name]`, you will receive an error advising you '
+                        'to do so.')
+        
+        await ctx.send(embed=embed)
 
 def setup(bot):
     bot.add_cog(Dragon(bot))
